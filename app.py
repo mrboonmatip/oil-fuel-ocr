@@ -22,9 +22,10 @@ app.add_middleware(
 
 sheets_service = SheetsService()
 
-os.makedirs("static", exist_ok=True)
-os.makedirs("templates", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+os.makedirs(os.path.join(BASE_DIR, "static"), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "templates"), exist_ok=True)
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 class FuelRecordRequest(BaseModel):
     refuel_date: str
@@ -41,15 +42,16 @@ class SheetConfig(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
-    with open("templates/index.html", "r", encoding="utf-8") as f:
+    index_path = os.path.join(BASE_DIR, "templates", "index.html")
+    with open(index_path, "r", encoding="utf-8") as f:
         return f.read()
 
 @app.post("/api/set-sheet-url")
 async def set_sheet_url(config: SheetConfig):
-    with open("sheet_config.json", "w", encoding="utf-8") as f:
+    config_path = os.path.join(BASE_DIR, "sheet_config.json")
+    with open(config_path, "w", encoding="utf-8") as f:
         json.dump({"sheet_url": config.sheet_url}, f, ensure_ascii=False, indent=2)
         
-    # Re-initialize Sheets Service to open custom URL
     global sheets_service
     sheets_service = SheetsService()
     
@@ -73,7 +75,7 @@ async def process_ocr(
             image_bytes = await file.read()
             filename = file.filename
         elif sample_filename:
-            sample_path = os.path.join(r"c:\Users\Boonma\Desktop\oil", sample_filename)
+            sample_path = os.path.join(BASE_DIR, sample_filename)
             if os.path.exists(sample_path):
                 with open(sample_path, "rb") as f:
                     image_bytes = f.read()
@@ -172,11 +174,12 @@ async def get_sample_images():
     samples = ["1013130.jpg", "1013131.jpg", "1013132.jpg", "1013133.jpg"]
     result = []
     for s in samples:
-        path = os.path.join(r"c:\Users\Boonma\Desktop\oil", s)
+        path = os.path.join(BASE_DIR, s)
         if os.path.exists(path):
             result.append({"filename": s, "size": os.path.getsize(path)})
     return {"samples": result}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
